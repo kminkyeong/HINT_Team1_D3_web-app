@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI 회의록</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #f3f6fc; color: #24344c; font-family: system-ui, -apple-system, sans-serif; }
+    main { max-width: 1100px; margin: 30px auto; padding: 0 18px; }
+    h1 { font-size: 26px; }
+    h2 { margin-top: 0; font-size: 19px; }
+    section { background: white; padding: 22px; border-radius: 16px; margin: 16px 0; box-shadow: 0 8px 30px #24447808; }
+    label { display: block; font-weight: 600; margin: 14px 0 7px; }
+    input, textarea, select { width: 100%; padding: 11px; border: 1px solid #ccd6e6; border-radius: 9px; font: inherit; }
+    textarea { min-height: 280px; line-height: 1.7; resize: vertical; }
+    button, .download { display: inline-block; padding: 10px 16px; margin: 6px 6px 6px 0; border: 0; border-radius: 9px;
+      background: #245cdb; color: white; font: inherit; text-decoration: none; cursor: pointer; }
+    button:disabled { opacity: .45; cursor: default; }
+    .red { background: #d43b50; }
+    .secondary { background: #63738a; }
+    .muted { color: #65758c; font-size: 14px; line-height: 1.7; }
+    .row { display: flex; gap: 12px; align-items: center; }
+    .row > .grow { flex: 1; min-width: 0; }
+    #status { padding: 14px; border-radius: 10px; background: #e7effe; white-space: pre-wrap; overflow-wrap: anywhere; }
+    #clock { font-size: 26px; font-variant-numeric: tabular-nums; margin: 12px 0; }
+    audio { width: 100%; margin: 10px 0; }
+    .hidden { display: none !important; }
+    .info { display: grid; grid-template-columns: 90px 1fr; gap: 6px 12px; font-size: 14px; margin-top: 12px; }
+    .info dt { color: #65758c; } .info dd { margin: 0; }
+    .chip { display: inline-block; font-size: 12px; padding: 2px 8px; margin: 2px 4px 2px 0; border-radius: 10px; background: #eef2ff; }
+    .chip.no { background: #fdecee; color: #a33; text-decoration: line-through; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { text-align: left; padding: 6px; border-bottom: 1px solid #e0e6ef; vertical-align: middle; }
+    th { color: #65758c; font-weight: 600; }
+    td input, td select { padding: 8px; }
+    td.del { width: 60px; } td.del button { margin: 0; padding: 6px 10px; }
+    .record { padding: 16px 0; border-bottom: 1px solid #e0e6ef; }
+    .record h3 { margin: 0 0 6px; font-size: 17px; overflow-wrap: anywhere; }
+    .record-content { margin-top: 10px; padding: 14px; background: #f7f9fd; border-radius: 10px; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.7; }
+    summary { color: #245cdb; cursor: pointer; }
+    @media (max-width: 640px) { section { padding: 16px; } .row { flex-wrap: wrap; } .info { grid-template-columns: 1fr; } }
+  </style>
+</head>
+
+<body data-meeting="__MEETING_ID__">
+  <main>
+    <h1>AI 회의록</h1>
+    <p class="muted">완료된 회의 선택 → 음성 녹음 또는 파일 선택 → Gemini 음성 전사 → Gemini 요약·할 일 추출 → 저장하면 할 일이 담당자에게 자동 배포됩니다.</p>
+
+    <!-- ⑤ 회의 선택 -->
+    <section>
+      <h2>1. 회의 선택</h2>
+      <div class="row">
+        <select id="meetingSelect" class="grow"><option value="">불러오는 중...</option></select>
+        <button id="reloadMeetings" type="button" class="secondary">목록 새로고침</button>
+      </div>
+      <p class="muted" style="margin:6px 0 0">회의 일정 관리에서 상태가 <b>완료</b>된 회의만 표시됩니다.</p>
+      <dl id="meetingInfo" class="info hidden"></dl>
+    </section>
+
+    <!-- 음성 -->
+    <section>
+      <h2>2. 음성 녹음 / 파일 선택</h2>
+      <p class="muted">Apps Script 실행 환경에서는 마이크 녹음이 차단될 수 있습니다. 이 경우 외부 녹음기에서 저장한 음성 파일을 선택하세요.</p>
+      <div id="clock">00:00</div>
+      <button id="start" type="button">● 녹음 시작</button>
+      <button id="stop" type="button" class="red" disabled>■ 녹음 종료</button>
+      <p class="muted">최대 5분 녹음 후 자동 종료합니다. 새 녹음을 시작하면 이전 음성이 교체됩니다.</p>
+      <label for="file">녹음 파일 선택</label>
+      <input id="file" type="file" accept="audio/*,.wav,.mp3,.m4a,.webm,.ogg,.flac">
+      <p class="muted">원본 파일 20MB 이하, 재생 시간 5분 이하.</p>
+      <audio id="player" controls class="hidden"></audio>
+      <a id="download" class="download hidden">녹음 파일 저장</a>
+      <p id="audioInfo" class="muted">선택된 음성이 없습니다.</p>
+    </section>
+
+    <!-- AI 요약 -->
+    <section>
+      <h2>3. AI 요약</h2>
+      <p class="muted">요약 버튼을 누르면 음성이 Gemini API(무료 등급)로 전송됩니다. 무료 등급 데이터는 Google 서비스 개선에 쓰일 수 있으니 실습용 녹음을 사용하세요.</p>
+      <label for="style">요약 형식</label>
+      <select id="style">
+        <option value="meeting">회의록 형식</option>
+        <option value="short">간단 요약</option>
+        <option value="full">자세히 + 전사 원문 포함</option>
+      </select>
+      <button id="summarize" type="button" disabled>AI 요약하기</button>
+      <p id="status" role="status" aria-live="polite">먼저 회의를 선택하세요.</p>
+      <label for="result">회의 내용 / 요약 결과 (수정 가능)</label>
+      <textarea id="result" maxlength="45000" placeholder="직접 작성하거나 AI 요약 결과를 수정하세요."></textarea>
+      <button id="copy" type="button" class="secondary">결과 복사</button>
+      <button id="saveText" type="button" class="secondary">텍스트 파일 저장</button>
+    </section>
+
+    <!-- ⑥ 할 일 + 저장 -->
+    <section>
+      <h2>4. 회의 후 할 일</h2>
+      <p class="muted">AI가 회의 내용에서 뽑은 할 일입니다. 담당자와 기한을 확인·수정하세요. 담당자는 참석자 중에서 고릅니다.</p>
+      <table>
+        <thead><tr><th>할 일</th><th style="width:150px">담당자</th><th style="width:160px">기한</th><th></th></tr></thead>
+        <tbody id="taskRows"></tbody>
+      </table>
+      <button id="addTask" type="button" class="secondary">+ 할 일 추가</button>
+      <p class="muted">저장하면 ① 회의록 시트 저장 ② 할 일 등록 ③ 담당자별 할 일 메일 ④ 참석자 전원 회의록 메일 ⑤ 캘린더 일정에 요약 반영이 자동으로 진행됩니다.</p>
+      <button id="saveMeeting" type="button">회의록 저장 및 할 일 배포</button>
+    </section>
+
+    <section>
+      <h2>회의록 목록</h2>
+      <button id="refresh" type="button" class="secondary">목록 새로고침</button>
+      <span id="recordCount" class="muted"></span>
+      <div id="records">목록을 불러오는 중입니다...</div>
+    </section>
+  </main>
+
+  <script>
+    'use strict';
+
+    const $ = id => document.getElementById(id);
+
+    const MAX_SECONDS = 300;
+    const MAX_ORIGINAL_BYTES = 20 * 1024 * 1024;
+    const MAX_WAV_BYTES = 12000000;
+
+    let meeting = null;          // 선택한 회의 정보 (getMeetingForMinutes 결과)
+    let recorder = null, microphoneStream = null, audioBlob = null, objectUrl = '';
+    let chunks = [], timer = null, startedAt = 0;
+    let preparing = false, summarizing = false, saving = false, stopping = false;
+    let listRequest = 0;
+
+    const setStatus = text => { $('status').textContent = text; };
+    const getErrorMessage = e => (e && e.message ? e.message : String(e || '알 수 없는 오류'));
+    const isRecording = () => Boolean(recorder && recorder.state !== 'inactive');
+
+    /** google.script.run 을 Promise로 감싸 async/await 로 사용 */
+    function callServer(fn, ...args) {
+      return new Promise((resolve, reject) => {
+        if (typeof google === 'undefined' || !google.script || !google.script.run) {
+          reject(new Error('Apps Script에서 배포한 웹앱 주소로 접속하세요.'));
+          return;
+        }
+        google.script.run.withSuccessHandler(resolve).withFailureHandler(reject)[fn](...args);
+      });
+    }
+
+    function updateControls() {
+      const recording = isRecording();
+      const working = preparing || summarizing || saving || stopping;
+      const saved = !!(meeting && meeting.minutesSaved);
+      $('start').disabled = recording || working;
+      $('stop').disabled = !recording || stopping;
+      $('file').disabled = recording || working;
+      $('summarize').disabled = !meeting || saved || !audioBlob || recording || working;
+      $('saveMeeting').disabled = !meeting || saved || recording || working;
+      $('addTask').disabled = !meeting || saved;
+      $('meetingSelect').disabled = working;
+      $('style').disabled = summarizing;
+      $('summarize').textContent = summarizing ? '전사 및 요약 중...' : 'AI 요약하기';
+      $('saveMeeting').textContent = saving ? '저장 중...' : saved ? '이미 저장된 회의입니다' : '회의록 저장 및 할 일 배포';
+    }
+
+    /* ===================== 1. 회의 선택 ===================== */
+
+    async function loadMeetingOptions(preselect) {
+      const sel = $('meetingSelect');
+      try {
+        const list = await callServer('getCompletedMeetings');
+        sel.replaceChildren(new Option(list.length ? '— 회의를 선택하세요 —' : '완료된 회의가 없습니다', ''));
+        list.forEach(m => sel.appendChild(new Option(m.label + (m.minutesSaved ? ' ✅ 회의록 저장됨' : ''), m.meetingId)));
+        if (preselect && list.some(m => m.meetingId === preselect)) {
+          sel.value = preselect;
+          await selectMeeting(preselect);
+        } else if (preselect) {
+          setStatus('링크의 회의는 아직 완료 상태가 아닙니다. 회의가 완료된 뒤 다시 열어 주세요.');
+        }
+      } catch (e) {
+        sel.replaceChildren(new Option('목록을 불러오지 못했습니다', ''));
+        setStatus('회의 목록 조회 실패: ' + getErrorMessage(e));
+      }
+    }
+
+    async function selectMeeting(id) {
+      meeting = null;
+      $('meetingInfo').classList.add('hidden');
+      $('taskRows').replaceChildren();
+      updateControls();
+      if (!id) { setStatus('먼저 회의를 선택하세요.'); return; }
+
+      try {
+        meeting = await callServer('getMeetingForMinutes', id);
+        renderMeetingInfo(meeting);
+        setStatus(meeting.minutesSaved
+          ? '이 회의는 이미 회의록이 저장되었습니다. 아래 회의록 목록에서 확인하세요.'
+          : '회의 정보를 불러왔습니다. 음성을 녹음하거나 파일을 선택한 뒤 AI 요약을 누르세요.');
+      } catch (e) {
+        setStatus('회의 정보를 불러오지 못했습니다: ' + getErrorMessage(e));
+      }
+      updateControls();
+    }
+
+    function renderMeetingInfo(m) {
+      const dl = $('meetingInfo');
+      dl.replaceChildren();
+      const add = (term, node) => {
+        const dt = document.createElement('dt'); dt.textContent = term;
+        const dd = document.createElement('dd');
+        typeof node === 'string' ? (dd.textContent = node) : dd.appendChild(node);
+        dl.append(dt, dd);
+      };
+      add('회의명', m.title);
+      add('일시', `${m.date} ${m.startTime} ~ ${m.endTime}`);
+      add('회의실', m.roomName || '-');
+
+      const people = document.createElement('div');
+      m.attendees.forEach(p => {
+        const chip = document.createElement('span');
+        chip.className = 'chip' + (p.response === '불참' ? ' no' : '');
+        chip.textContent = `${p.name} (${p.response})`;
+        people.appendChild(chip);
+      });
+      add('참석자', people);
+      if (m.agenda) add('안건', m.agenda);
+      if (m.preTasks.length) add('사전 할 일', m.preTasks.map(t => `${t.title} - ${t.assignee || '미정'}`).join('\n'));
+      dl.querySelectorAll('dd').forEach(dd => { dd.style.whiteSpace = 'pre-wrap'; });
+      dl.classList.remove('hidden');
+    }
+
+    $('meetingSelect').addEventListener('change', e => selectMeeting(e.target.value));
+    $('reloadMeetings').addEventListener('click', () => loadMeetingOptions($('meetingSelect').value));
+
+    /* ===================== 4. 할 일 표 ===================== */
+
+    function addTaskRow(item) {
+      item = item || { task: '', assignee: '', dueDate: '' };
+      const tr = document.createElement('tr');
+
+      const task = document.createElement('input');
+      task.className = 'tk-task'; task.value = item.task; task.placeholder = '할 일 내용';
+
+      const who = document.createElement('select');
+      who.className = 'tk-who';
+      who.appendChild(new Option('미정', ''));
+      (meeting ? meeting.attendees : []).forEach(p => who.appendChild(new Option(p.name, p.name)));
+      who.value = item.assignee || '';
+
+      const due = document.createElement('input');
+      due.type = 'date'; due.className = 'tk-due'; due.value = item.dueDate || '';
+
+      const del = document.createElement('button');
+      del.type = 'button'; del.className = 'secondary'; del.textContent = '삭제';
+      del.onclick = () => tr.remove();
+
+      [task, who, due].forEach(el => { const td = document.createElement('td'); td.appendChild(el); tr.appendChild(td); });
+      const tdDel = document.createElement('td'); tdDel.className = 'del'; tdDel.appendChild(del); tr.appendChild(tdDel);
+      $('taskRows').appendChild(tr);
+    }
+
+    const readTaskRows = () => [...$('taskRows').querySelectorAll('tr')].map(tr => ({
+      task: tr.querySelector('.tk-task').value.trim(),
+      assignee: tr.querySelector('.tk-who').value,
+      dueDate: tr.querySelector('.tk-due').value
+    })).filter(i => i.task);
+
+    $('addTask').addEventListener('click', () => addTaskRow());
+
+    /* ===================== 2. 녹음 / 파일 ===================== */
+
+    function releaseMicrophone() {
+      clearInterval(timer); timer = null;
+      if (microphoneStream) { microphoneStream.getTracks().forEach(t => t.stop()); microphoneStream = null; }
+    }
+
+    function setAudio(blob, filename) {
+      audioBlob = blob;
+      $('player').pause();
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      objectUrl = URL.createObjectURL(blob);
+      $('player').src = objectUrl;
+      $('player').classList.remove('hidden');
+      $('download').href = objectUrl;
+      $('download').download = filename;
+      $('download').classList.remove('hidden');
+      $('audioInfo').textContent = filename + ' · ' + (blob.size / 1024 / 1024).toFixed(2) + ' MB';
+      updateControls();
+    }
+
+    $('start').addEventListener('click', async () => {
+      if (preparing || summarizing || saving || stopping || isRecording()) return;
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder) {
+        setStatus('이 환경에서는 직접 녹음을 사용할 수 없습니다.\n외부 녹음기에서 만든 음성 파일을 선택하세요.');
+        return;
+      }
+      if (audioBlob && !confirm('기존 음성을 새 녹음으로 교체할까요?\n필요하면 먼저 녹음 파일을 저장하세요.')) return;
+
+      preparing = true; updateControls();
+      try {
+        $('player').pause();
+        microphoneStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const mimeType = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/webm'].find(t => MediaRecorder.isTypeSupported(t));
+        recorder = mimeType ? new MediaRecorder(microphoneStream, { mimeType }) : new MediaRecorder(microphoneStream);
+        chunks = [];
+        let recordedBytes = 0, recordingError = '';
+
+        recorder.ondataavailable = event => {
+          if (!event.data.size) return;
+          chunks.push(event.data);
+          recordedBytes += event.data.size;
+          if (recordedBytes > MAX_WAV_BYTES && recorder.state === 'recording') stopRecording();
+        };
+        recorder.onstop = () => {
+          const type = recorder.mimeType || (chunks[0] && chunks[0].type) || 'audio/webm';
+          const blob = new Blob(chunks, { type });
+          chunks = []; releaseMicrophone(); stopping = false;
+          if (blob.size) {
+            setAudio(blob, '회의녹음-' + Date.now() + (type.includes('mp4') ? '.m4a' : '.webm'));
+            setStatus(recordingError ? recordingError + '\n남은 녹음 파일을 확인하세요.' : '녹음 완료. 재생해 확인한 뒤 AI 요약을 누르세요.');
+          } else {
+            setStatus(recordingError || '녹음된 음성이 없습니다.');
+          }
+          updateControls();
+        };
+        recorder.onerror = event => {
+          recordingError = '녹음 오류: ' + getErrorMessage(event.error);
+          if (recorder.state !== 'inactive') stopRecording();
+          else { releaseMicrophone(); stopping = false; updateControls(); }
+          setStatus(recordingError);
+        };
+
+        recorder.start(1000);
+        startedAt = Date.now();
+        $('clock').textContent = '00:00';
+        timer = setInterval(() => {
+          const s = Math.floor((Date.now() - startedAt) / 1000);
+          $('clock').textContent = String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+          if (s >= MAX_SECONDS) stopRecording();
+        }, 500);
+        setStatus('녹음 중입니다. 마치면 녹음 종료를 누르세요.');
+      } catch (error) {
+        releaseMicrophone();
+        setStatus('녹음을 시작하지 못했습니다: ' + getErrorMessage(error) +
+          '\nApps Script의 마이크 제한일 수 있습니다.\n외부에서 녹음한 파일을 선택해 요약하세요.');
+      } finally {
+        preparing = false; updateControls();
+      }
+    });
+
+    function stopRecording() {
+      if (recorder && recorder.state === 'recording') { stopping = true; recorder.stop(); updateControls(); }
+    }
+    $('stop').addEventListener('click', stopRecording);
+
+    $('file').addEventListener('change', () => {
+      const file = $('file').files[0];
+      if (!file) return;
+      if (file.size > MAX_ORIGINAL_BYTES) { $('file').value = ''; setStatus('원본 음성 파일은 20MB 이하로 선택하세요.'); return; }
+      setAudio(file, file.name);
+      $('clock').textContent = '파일 선택';
+      setStatus(meeting ? '음성 파일을 선택했습니다. AI 요약을 누르세요.' : '음성 파일을 선택했습니다. 회의를 먼저 선택하세요.');
+    });
+
+    /** 16bit PCM WAV 생성 */
+    function encodeWav(samples, sampleRate) {
+      const buffer = new ArrayBuffer(44 + samples.length * 2);
+      const view = new DataView(buffer);
+      const writeString = (offset, text) => { for (let i = 0; i < text.length; i++) view.setUint8(offset + i, text.charCodeAt(i)); };
+      writeString(0, 'RIFF'); view.setUint32(4, 36 + samples.length * 2, true);
+      writeString(8, 'WAVE'); writeString(12, 'fmt ');
+      view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+      view.setUint32(24, sampleRate, true); view.setUint32(28, sampleRate * 2, true);
+      view.setUint16(32, 2, true); view.setUint16(34, 16, true);
+      writeString(36, 'data'); view.setUint32(40, samples.length * 2, true);
+      for (let i = 0; i < samples.length; i++) {
+        const s = Math.max(-1, Math.min(1, samples[i]));
+        view.setInt16(44 + i * 2, Math.round(s < 0 ? s * 32768 : s * 32767), true);
+      }
+      return new Blob([buffer], { type: 'audio/wav' });
+    }
+
+    /** 어떤 형식의 음성이든 16kHz 모노 PCM 샘플로 변환 (용량 축소: 5분 ≈ 10MB) */
+    const SAMPLE_RATE = 16000;
+    async function decodeTo16k(blob) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+      if (!AC || !OAC) throw new Error('현재 브라우저는 오디오 변환을 지원하지 않습니다.');
+      const context = new AC();
+      try {
+        let decoded;
+        try { decoded = await context.decodeAudioData(await blob.arrayBuffer()); }
+        catch (e) { throw new Error('읽을 수 없는 음성 파일입니다. WAV 또는 MP3로 선택하세요.'); }
+        if (!Number.isFinite(decoded.duration) || decoded.duration <= 0 || decoded.duration > MAX_SECONDS + 0.2) {
+          throw new Error('5분 이하의 음성 파일을 선택하세요.');
+        }
+        const offline = new OAC(1, Math.ceil(decoded.duration * SAMPLE_RATE), SAMPLE_RATE);
+        const source = offline.createBufferSource();
+        source.buffer = decoded; source.connect(offline.destination); source.start();
+        const rendered = await offline.startRendering();
+        return rendered.getChannelData(0);
+      } finally {
+        await context.close().catch(() => {});
+      }
+    }
+
+
+    const toBase64 = blob => new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result).split(',')[1]);
+      reader.onerror = () => reject(new Error('음성 파일 읽기 실패'));
+      reader.readAsDataURL(blob);
+    });
+
+    /* ===================== 3. AI 전사 + 요약 ===================== */
+
+    $('summarize').addEventListener('click', async () => {
+      if (!meeting || !audioBlob || summarizing || saving || preparing || stopping || isRecording()) return;
+      if (($('result').value.trim() || readTaskRows().length) &&
+          !confirm('현재 회의 내용과 할 일 목록을 새 요약 결과로 교체할까요?')) return;
+
+      const style = $('style').value;
+      summarizing = true; updateControls();
+      try {
+        setStatus('음성을 변환하고 있습니다...');
+        const wav = encodeWav(await decodeTo16k(audioBlob), SAMPLE_RATE);
+        if (wav.size > MAX_WAV_BYTES) throw new Error('변환된 음성이 너무 큽니다. 5분 이하로 녹음하세요.');
+        const audio = await toBase64(wav);
+
+        setStatus('1/2 Gemini가 음성을 텍스트로 받아 적고 있습니다.\n페이지를 닫지 말고 기다려 주세요.');
+        const { transcript } = await callServer('transcribeAudio', { audio });
+        if (!transcript) throw new Error('인식된 음성이 없습니다. 녹음 상태와 음량을 확인하세요.');
+
+        setStatus('2/2 전사 완료. Gemini가 회의 내용을 요약하고 할 일을 뽑고 있습니다.');
+        let result;
+        try {
+          result = await callServer('summarizeTranscript', {
+            transcript, style,
+            title: meeting.title, date: meeting.date,
+            attendees: meeting.attendees.map(p => p.name)
+          });
+        } catch (error) {
+          // 요약만 실패해도 전사 결과는 남겨서 다시 녹음하지 않아도 되게 함
+          $('result').value = '[전사]\n' + transcript;
+          throw new Error(getErrorMessage(error) + '\n전사 결과는 입력란에 넣어 두었습니다.');
+        }
+
+        $('result').value = (style === 'full' ? '[전사]\n' + transcript + '\n\n[요약]\n' : '') + result.summary;
+        $('taskRows').replaceChildren();
+        result.actionItems.forEach(addTaskRow);
+        setStatus(`요약 완료. 할 일 ${result.actionItems.length}건을 찾았습니다.\n내용·담당자·기한을 확인한 뒤 저장하세요.`);
+      } catch (error) {
+        setStatus('요약 실패: ' + getErrorMessage(error));
+      } finally {
+        summarizing = false; updateControls();
+      }
+    });
+
+    $('copy').addEventListener('click', async () => {
+      if (!$('result').value.trim()) return setStatus('복사할 내용이 없습니다.');
+      try { await navigator.clipboard.writeText($('result').value); setStatus('회의 내용을 복사했습니다.'); }
+      catch (e) { $('result').focus(); $('result').select(); setStatus('내용을 선택했습니다. Ctrl+C로 복사하세요.'); }
+    });
+
+    $('saveText').addEventListener('click', () => {
+      if (!$('result').value.trim()) return setStatus('저장할 내용이 없습니다.');
+      const url = URL.createObjectURL(new Blob(['﻿' + $('result').value], { type: 'text/plain;charset=utf-8' }));
+      const link = document.createElement('a');
+      link.href = url; link.download = '회의록-' + Date.now() + '.txt';
+      document.body.appendChild(link); link.click(); link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    });
+
+    /* ===================== 4. 저장 + 할 일 배포 ===================== */
+
+    $('saveMeeting').addEventListener('click', async () => {
+      if (!meeting || saving || summarizing || preparing || stopping || isRecording()) return;
+      const content = $('result').value.trim();
+      const actionItems = readTaskRows();
+      if (!content) return setStatus('회의 내용을 입력하거나 AI 요약을 먼저 실행하세요.');
+      if (content.length > 45000) return setStatus('회의 내용은 45,000자 이하로 줄여 주세요.');
+      if (!confirm(`회의록을 저장하고 할 일 ${actionItems.length}건을 배포할까요?\n담당자와 참석자에게 메일이 발송되며, 저장 후에는 이 화면에서 수정할 수 없습니다.`)) return;
+
+      saving = true; updateControls();
+      try {
+        const result = await callServer('saveMeetingData', { meetingId: meeting.meetingId, content, actionItems });
+        setStatus(result.message);
+        meeting.minutesSaved = true;
+        await Promise.all([loadRecords(), loadMeetingOptions()]);
+        $('meetingSelect').value = meeting.meetingId;
+      } catch (error) {
+        setStatus('저장 실패: ' + getErrorMessage(error));
+      } finally {
+        saving = false; updateControls();
+      }
+    });
+
+    /* ===================== 회의록 목록 ===================== */
+
+    async function loadRecords() {
+      const request = ++listRequest;
+      const target = $('records');
+      target.textContent = '목록을 불러오는 중입니다...';
+      $('refresh').disabled = true;
+      try {
+        const rows = await callServer('getMeetingData');
+        if (request !== listRequest) return;
+        $('recordCount').textContent = '총 ' + rows.length + '건';
+        target.replaceChildren();
+        if (!rows.length) { target.textContent = '등록된 회의록이 없습니다.'; return; }
+
+        rows.forEach(item => {
+          const article = document.createElement('article');
+          article.className = 'record';
+          const heading = document.createElement('h3');
+          heading.textContent = item.title;
+          const meta = document.createElement('p');
+          meta.className = 'muted';
+          meta.textContent = [item.date, item.time, item.room, '참석: ' + (item.attendees || '-')].filter(Boolean).join(' · ');
+          const details = document.createElement('details');
+          const summary = document.createElement('summary');
+          summary.textContent = '회의 내용 · 할 일 보기';
+          const content = document.createElement('div');
+          content.className = 'record-content';
+          content.textContent = item.content + (item.tasks ? '\n\n[회의 후 할 일]\n' + item.tasks : '');
+          details.append(summary, content);
+          article.append(heading, meta, details);
+          target.appendChild(article);
+        });
+      } catch (error) {
+        if (request !== listRequest) return;
+        $('recordCount').textContent = '조회 실패';
+        target.textContent = '목록 조회 실패: ' + getErrorMessage(error);
+      } finally {
+        if (request === listRequest) $('refresh').disabled = false;
+      }
+    }
+    $('refresh').addEventListener('click', loadRecords);
+
+    /* ===================== 시작 ===================== */
+
+    window.addEventListener('beforeunload', event => {
+      if (summarizing || saving || preparing || stopping || isRecording()) { event.preventDefault(); event.returnValue = ''; }
+    });
+    window.addEventListener('pagehide', () => { releaseMicrophone(); if (objectUrl) URL.revokeObjectURL(objectUrl); });
+
+    updateControls();
+    loadRecords();
+    const fromLink = document.body.dataset.meeting || '';
+    loadMeetingOptions(/^[A-Za-z0-9-]+$/.test(fromLink) ? fromLink : '');
+  </script>
+</body>
+</html>
