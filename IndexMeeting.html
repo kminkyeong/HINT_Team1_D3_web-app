@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap">
+<style>
+  :root { --navy:#002c5f; --blue:#007fa8; --sky:#00aad2; --sand:#e4dcd3;
+          --bg:#f6f3f0; --card:#fff; --line:#dcd6cf; --text:#1a1a1a; --sub:#6b6b6b; --soft:#e1e8f1; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:'Noto Sans KR','Apple SD Gothic Neo','Malgun Gothic',sans-serif; background:var(--bg); color:var(--text); }
+  .wrap { max-width:980px; margin:0 auto; padding:16px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:2px; padding:16px 18px; margin-bottom:12px; }
+  h1 { font-size:20px; margin:0; color:var(--navy); font-weight:700; }
+  h2 { font-size:16px; margin:0 0 10px; color:var(--navy); }
+  .sub { color:var(--sub); font-size:13px; line-height:1.6; }
+  .meta { color:var(--sub); font-size:14px; margin-top:8px; }
+  .agenda { margin-top:10px; padding:10px 12px; background:#faf8f6; border-left:3px solid var(--sand); white-space:pre-wrap; font-size:14px; }
+  .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  .between { justify-content:space-between; }
+  .grid2 { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+  @media (max-width:640px) { .grid2 { grid-template-columns:1fr; } }
+  input, select, textarea, button { font:inherit; }
+  input, select, textarea { width:100%; border:1px solid var(--line); border-radius:2px; padding:9px; background:#fff; }
+  input[type=radio], input[type=checkbox] { width:auto; }
+  textarea { min-height:90px; }
+  label.f { display:block; font-size:13px; color:var(--sub); margin:12px 0 4px; }
+  button { border:0; border-radius:2px; padding:9px 16px; background:var(--navy); color:#fff; cursor:pointer; font-weight:500; }
+  button:hover { background:var(--blue); }
+  button.ghost { background:#fff; color:var(--navy); border:1px solid var(--navy); }
+  button:disabled { opacity:.5; cursor:default; }
+
+  /* 상태 배지 */
+  .st { display:inline-block; font-size:12px; padding:3px 10px; border-radius:2px; font-weight:700; white-space:nowrap; }
+  .st.planned { background:var(--soft); color:var(--navy); }
+  .st.ongoing { background:#e3f4ea; color:#1d7a46; }
+  .st.done { background:#ece7f6; color:#5b3fa3; }
+  .st.canceled { background:#f6e3df; color:#9b2c1f; }
+  .resp { font-size:12px; padding:2px 8px; border-radius:2px; background:var(--sand); white-space:nowrap; }
+  .resp.y { background:#e3f4ea; color:#1d7a46; } .resp.n { background:#f6e3df; color:#9b2c1f; }
+
+  .choice { display:inline-flex; align-items:center; gap:6px; border:1px solid var(--line); padding:9px 16px; margin:4px 6px 4px 0; cursor:pointer; }
+  .choice:has(input:checked) { border-color:var(--navy); background:var(--soft); font-weight:700; }
+  .task { display:flex; gap:10px; align-items:center; padding:9px 0; border-bottom:1px solid var(--line); font-size:14px; cursor:pointer; }
+  .task .who { margin-left:auto; font-size:12px; color:var(--sub); white-space:nowrap; }
+  .task.taken { color:#aaa; cursor:default; }
+  .list .item { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:8px 0; border-bottom:1px solid var(--line); font-size:14px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--sub); font-weight:500; }
+  .banner { background:var(--navy); color:#fff; }
+  .banner .sub, .banner label.f { color:#c9d6e5; }
+  .banner a { color:#fff; }
+  .link { font-size:12px; }
+  .toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:var(--navy); color:#fff; padding:9px 14px; border-radius:2px; font-size:13px; opacity:0; pointer-events:none; transition:.2s; }
+  .toast.show { opacity:1; }
+</style>
+</head>
+<body data-page="__PAGE__" data-m="__MID__" data-admin="__KEY__" data-token="__TOKEN__">
+<div class="wrap" id="app"><div class="card">불러오는 중…</div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ===================== 공통 ===================== */
+const B = document.body.dataset;
+const PAGE = B.page, MID = B.m, KEY = B.admin, TOKEN = B.token;
+const $ = s => document.querySelector(s);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+/** google.script.run 을 Promise로 감싸 async/await 로 쓸 수 있게 함 */
+const call = (fn, ...a) => new Promise((res, rej) =>
+  google.script.run.withSuccessHandler(res).withFailureHandler(rej)[fn](...a));
+const DOW = '일월화수목금토';
+const dayLabel = d => { const [y, m, dd] = d.split('-').map(Number); return `${y}. ${m}. ${dd} (${DOW[new Date(y, m - 1, dd).getDay()]})`; };
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), 2500); }
+const errMsg = e => (e && e.message) || String(e);
+const showError = e => { $('#app').innerHTML = `<div class="card">${esc(errMsg(e))}</div>`; };
+
+const STATUS_CLASS = { '예정':'planned', '진행중':'ongoing', '완료':'done', '취소':'canceled' };
+const badge = s => `<span class="st ${STATUS_CLASS[s] || ''}">${esc(s)}</span>`;
+const respBadge = r => `<span class="resp ${r === '참석' ? 'y' : r === '불참' ? 'n' : ''}">${esc(r)}</span>`;
+
+/** 회의 기본 정보 카드 */
+function infoCard(m) {
+  return `<div class="card">
+    <div class="row between"><h1>${esc(m.title)}</h1>${badge(m.status)}</div>
+    <div class="meta">📅 ${dayLabel(m.date)} ${esc(m.startTime)} ~ ${esc(m.endTime)}
+      &nbsp;·&nbsp; 🏢 ${esc(m.roomName || '-')}${m.location ? ' (' + esc(m.location) + ')' : ''}</div>
+    ${m.agenda ? `<div class="agenda">${esc(m.agenda)}</div>` : ''}
+  </div>`;
+}
+
+/** 참석 응답 현황 (응답별 인원 + 명단) */
+function attendeeList(list, withDetail) {
+  const count = r => list.filter(p => p.response === r).length;
+  return `<div class="sub" style="margin-bottom:6px">참석 ${count('참석')} · 불참 ${count('불참')} · 미정 ${count('미정')} · 미응답 ${count('미응답')} / 총 ${list.length}명</div>
+    <div class="list">${list.map(p => `<div class="item">
+      <span>${esc(p.name)}${withDetail ? ` <span class="sub">${esc(p.email)}</span>` : ''}</span>
+      <span class="row">${withDetail ? `<button class="ghost copy" data-url="${esc(p.url)}" style="padding:3px 8px;font-size:12px">링크 복사</button>` : ''}${respBadge(p.response)}</span>
+    </div>`).join('')}</div>`;
+}
+
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); toast('링크를 복사했습니다'); }
+  catch (e) { window.prompt('아래 링크를 복사하세요', text); }
+}
+
+/* ===================== 라우팅 ===================== */
+if (PAGE === 'create') renderCreate();
+else if (PAGE === 'respond') loadRespond();
+else if (PAGE === 'manage') loadManage();
+else $('#app').innerHTML = '<div class="card">참석자는 메일로 받은 <b>개인 응답 링크</b>로, 주최자는 <b>관리자 링크</b>로 접속해 주세요.</div>';
+
+/* ===================== ① 회의 등록 ===================== */
+async function renderCreate() {
+  const ymd = n => { const x = new Date(); x.setDate(x.getDate() + n); return x.getFullYear() + '-' + ('0' + (x.getMonth() + 1)).slice(-2) + '-' + ('0' + x.getDate()).slice(-2); };
+  let rooms = [];
+  try { rooms = await call('getRoomList'); } catch (e) { return showError(e); }
+
+  $('#app').innerHTML = `<div class="card">
+    <h2>새 회의 등록</h2>
+    <div class="sub">등록하면 구글 캘린더 일정이 만들어지고, 참석자에게 초대장과 개인 응답 링크가 발송됩니다.</div>
+    <label class="f">회의명 *</label><input id="title" placeholder="예) 11월 주간 기획 회의">
+    <div class="grid2">
+      <div><label class="f">회의 날짜 *</label><input type="date" id="date" value="${ymd(1)}"></div>
+      <div><label class="f">시작 시간 *</label><input type="time" id="startTime" value="10:00" step="600"></div>
+      <div><label class="f">종료 시간 *</label><input type="time" id="endTime" value="11:00" step="600"></div>
+    </div>
+    <label class="f">회의실 *</label>
+    <select id="roomId">${rooms.length ? rooms.map(r => `<option value="${esc(r.roomId)}">${esc(r.roomName)} (정원 ${r.capacity}명${r.location ? ' · ' + esc(r.location) : ''})</option>`).join('') : '<option value="">Rooms 시트에 회의실을 등록하세요</option>'}</select>
+    <label class="f">참석자 * (한 줄에 한 명: 이름, 이메일)</label>
+    <textarea id="attendees" placeholder="김동우, dongwoo@company.com&#10;이서연, seoyeon@company.com"></textarea>
+    <label class="f">안건</label>
+    <textarea id="agenda" placeholder="예) 1. 지난주 진행 상황 공유&#10;2. 신규 프로젝트 일정 논의"></textarea>
+    <label class="f">사전 할 일 (한 줄에 하나 · 참석자가 응답할 때 맡을 항목을 선택합니다)</label>
+    <textarea id="tasks" placeholder="예) 지난주 실적 자료 준비&#10;회의실 프로젝터 확인"></textarea>
+    <label style="display:block;margin:12px 0"><input type="checkbox" id="sendMail" checked> 참석자에게 초대 메일 보내기</label>
+    <button id="go">회의 등록</button>
+    <div id="result" style="margin-top:12px"></div>
+  </div>`;
+
+  $('#go').onclick = async () => {
+    const v = id => $('#' + id).value;
+    const f = {
+      title: v('title'), date: v('date'), startTime: v('startTime'), endTime: v('endTime'), roomId: v('roomId'),
+      attendees: v('attendees'), agenda: v('agenda'), tasks: v('tasks'), sendMail: $('#sendMail').checked
+    };
+    $('#go').disabled = true; $('#go').textContent = '등록 중…';
+    try {
+      const r = await call('createMeeting', f);
+      $('#result').innerHTML = `<div class="card banner">
+        <b>등록 완료!</b> 캘린더 초대를 보냈고, ${r.mailed}명에게 응답 링크 메일을 발송했습니다.
+        <label class="f">관리자 링크 (본인만 보관 · 참석 현황 확인과 상태 변경)</label>
+        <input class="link" readonly value="${esc(r.manageUrl)}" onclick="this.select()">
+        <label class="f">참석자별 개인 응답 링크</label>
+        ${r.links.map(l => `<div class="row" style="margin-bottom:4px"><span style="min-width:80px">${esc(l.name)}</span><input class="link" style="flex:1" readonly value="${esc(l.url)}" onclick="this.select()"></div>`).join('')}
+        <p><a href="${esc(r.manageUrl)}" target="_top">→ 관리 화면 열기</a></p></div>`;
+      $('#go').textContent = '등록 완료';
+    } catch (e) {
+      toast('오류: ' + errMsg(e));
+      $('#go').disabled = false; $('#go').textContent = '회의 등록';
+    }
+  };
+}
+
+/* ===================== ③ 참석자 응답 ===================== */
+async function loadRespond() {
+  try { renderRespond(await call('getResponseView', TOKEN)); } catch (e) { showError(e); }
+}
+
+function renderRespond(v) {
+  const dis = v.canEdit ? '' : 'disabled';
+  $('#app').innerHTML = infoCard(v.meeting) + `
+    <div class="card">
+      <h2>${esc(v.me.name)}님, 참석 여부를 선택하세요</h2>
+      ${['참석', '불참', '미정'].map(r => `<label class="choice"><input type="radio" name="resp" value="${r}" ${v.me.response === r ? 'checked' : ''} ${dis}> ${r}</label>`).join('')}
+
+      <h2 style="margin-top:20px">사전 할 일 선택</h2>
+      <div class="sub">회의 전에 맡을 할 일을 체크하세요. 이미 다른 사람이 맡은 항목은 선택할 수 없습니다.</div>
+      ${v.tasks.length ? v.tasks.map(t => {
+        const taken = t.assignee && !t.mine;
+        return `<label class="task ${taken ? 'taken' : ''}">
+          <input type="checkbox" class="tk" value="${esc(t.taskId)}" ${t.mine ? 'checked' : ''} ${taken || !v.canEdit ? 'disabled' : ''}>
+          <span>${esc(t.title)}</span>
+          <span class="who">${t.assignee ? esc(t.assignee) + (t.mine ? ' (나)' : '') : '담당자 없음'}</span></label>`;
+      }).join('') : '<div class="sub" style="margin-top:8px">등록된 사전 할 일이 없습니다.</div>'}
+
+      <div style="margin-top:14px">${v.canEdit
+        ? '<button id="submit">응답 저장</button> <span class="sub">저장하면 구글 캘린더 일정에도 반영됩니다.</span>'
+        : '<span class="sub">완료되었거나 취소된 회의라 응답을 바꿀 수 없습니다.</span>'}</div>
+    </div>
+    <div class="card"><h2>참석 현황</h2>${attendeeList(v.attendees, false)}</div>`;
+
+  if (!v.canEdit) return;
+  $('#submit').onclick = async () => {
+    const picked = document.querySelector('input[name=resp]:checked');
+    if (!picked) return toast('참석 여부를 선택하세요');
+    const taskIds = [...document.querySelectorAll('.tk:checked:not(:disabled)')].map(x => x.value);
+    $('#submit').disabled = true; $('#submit').textContent = '저장 중…';
+    try {
+      const r = await call('submitResponse', TOKEN, picked.value, taskIds);
+      renderRespond(r.view);
+      toast(r.skipped.length ? `저장했습니다. 이미 다른 사람이 맡은 항목: ${r.skipped.join(', ')}` : '응답을 저장했습니다');
+    } catch (e) {
+      toast('오류: ' + errMsg(e));
+      $('#submit').disabled = false; $('#submit').textContent = '응답 저장';
+    }
+  };
+}
+
+/* ===================== 관리자 화면 ===================== */
+async function loadManage() {
+  try { renderManage(await call('getManageView', MID, KEY)); } catch (e) { showError(e); }
+}
+
+function renderManage(v) {
+  const m = v.meeting;
+  const statuses = ['예정', '진행중', '완료', '취소'];
+  const canceled = m.status === '취소';
+  const pre = v.tasks.filter(t => t.phase === '사전'), post = v.tasks.filter(t => t.phase === '회의후');
+  const taskTable = list => list.length
+    ? `<table><tr><th>할 일</th><th>담당자</th><th>기한</th></tr>${list.map(t => `<tr><td>${esc(t.title)}</td><td>${esc(t.assignee || '미정')}</td><td>${esc(t.dueDate || '-')}</td></tr>`).join('')}</table>`
+    : '<div class="sub">없음</div>';
+
+  $('#app').innerHTML = infoCard(m) + `
+    <div class="card">
+      <div class="row between"><h2 style="margin:0">회의 상태</h2><button class="ghost" id="reload">새로고침</button></div>
+      <div class="row" style="margin-top:10px">${statuses.map(s => `<button class="${s === m.status ? '' : 'ghost'} stbtn" data-s="${s}" ${canceled || s === m.status ? 'disabled' : ''}>${s}</button>`).join('')}</div>
+      <div class="sub" style="margin-top:8px">시작 시간이 되면 '진행중', 종료 시간이 지나면 '완료'로 자동 변경됩니다. 필요하면 직접 바꿀 수 있습니다.<br>
+        '완료'가 되면 AI 회의록 화면에서 이 회의를 불러올 수 있고, 주최자에게 회의록 작성 요청 메일이 갑니다.</div>
+      ${m.status === '완료' ? `<div class="card banner" style="margin:12px 0 0">
+        ${v.minutesSaved ? '✅ 회의록이 저장되었습니다.' : '📝 회의가 완료되었습니다. 회의록을 작성하세요.'}
+        &nbsp;<a href="${esc(v.minutesUrl)}" target="_top"><b>AI 회의록 ${v.minutesSaved ? '보기' : '작성하기'} →</b></a></div>` : ''}
+    </div>
+    <div class="card"><h2>참석 응답</h2>${attendeeList(v.attendees, true)}</div>
+    <div class="card"><h2>사전 할 일</h2>${taskTable(pre)}</div>
+    ${post.length ? `<div class="card"><h2>회의 후 할 일 (회의록에서 등록)</h2>${taskTable(post)}</div>` : ''}`;
+
+  $('#reload').onclick = loadManage;
+  document.querySelectorAll('.copy').forEach(b => b.onclick = () => copyText(b.dataset.url));
+  document.querySelectorAll('.stbtn').forEach(b => b.onclick = async () => {
+    const s = b.dataset.s;
+    const warn = s === '취소' ? '\n캘린더 일정이 삭제되고 참석자에게 취소 메일이 갑니다. 되돌릴 수 없습니다.'
+      : s === '완료' ? '\n회의록 작성이 가능해지고 주최자에게 작성 요청 메일이 갑니다.' : '';
+    if (!confirm(`회의 상태를 '${s}'(으)로 바꿀까요?${warn}`)) return;
+    b.disabled = true;
+    try { renderManage(await call('setMeetingStatus', MID, KEY, s)); toast(`'${s}'(으)로 변경했습니다`); }
+    catch (e) { toast('오류: ' + errMsg(e)); b.disabled = false; }
+  });
+}
+</script>
+</body>
+</html>
