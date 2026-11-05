@@ -1,0 +1,272 @@
+
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>통합 업무 관리</title>
+
+  <style>
+    :root {
+      --navy: #002c5f;
+      --blue: #007fa8;
+      --bg: #f5f7fb;
+      --line: #e4e8f0;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: #172337;
+      font-family: Arial, 'Apple SD Gothic Neo',
+        'Malgun Gothic', sans-serif;
+    }
+
+    .hero {
+      background: #fff;
+      border-bottom: 1px solid var(--line);
+      padding: 23px max(22px, calc((100vw - 1100px) / 2));
+    }
+
+    .hero h1 {
+      margin: 0;
+      font-size: 23px;
+      color: var(--navy);
+    }
+
+    .hero p {
+      margin: 8px 0 0;
+      color: #56647a;
+      font-size: 14px;
+    }
+
+    main {
+      max-width: 1100px;
+      margin: auto;
+      padding: 32px 20px;
+    }
+
+    h2 {
+      font-size: 19px;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 20px;
+    }
+
+    .card {
+      background: #fff;
+      border: 1px solid var(--line);
+      padding: 26px;
+      border-radius: 17px;
+      box-shadow: 0 8px 25px #12223a08;
+    }
+
+    .emoji {
+      font-size: 34px;
+    }
+
+    .card h3 {
+      font-size: 20px;
+      margin: 15px 0 10px;
+    }
+
+    .card p {
+      line-height: 1.7;
+      color: #56647a;
+      min-height: 72px;
+    }
+
+    .actions {
+      display: flex;
+      gap: 9px;
+      flex-wrap: wrap;
+      margin-top: 20px;
+    }
+
+    a.btn {
+      text-decoration: none;
+      background: var(--navy);
+      color: white;
+      border-radius: 8px;
+      padding: 12px 15px;
+      font-weight: 700;
+      font-size: 13px;
+    }
+
+    a.btn.secondary {
+      background: #eef2ff;
+      color: var(--navy);
+    }
+
+    .note {
+      color: #697386;
+      line-height: 1.7;
+      font-size: 13px;
+      margin-top: 28px;
+    }
+
+    @media (max-width: 680px) {
+      .cards {
+        grid-template-columns: 1fr;
+      }
+
+      .card p {
+        min-height: 0;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- 상단 헤더 -->
+  <div class="hero">
+    <h1>통합 업무 관리</h1>
+    <p>
+      회의 일정, 팀 예산, AI 회의록을 한 곳에서 관리하세요.
+    </p>
+  </div>
+
+  <main>
+
+    <h2>업무 메뉴</h2>
+
+    <div class="cards">
+
+      <!-- 1. 회의 일정 관리 -->
+      <section class="card">
+        <div class="emoji">📅</div>
+
+        <h3>회의 일정 관리</h3>
+
+        <p>
+          회의를 등록하면 구글 캘린더 초대와
+          개인 응답 링크가 발송되고,
+          참석자는 참석 여부와 맡을 할 일을 선택합니다.
+        </p>
+
+        <div class="actions">
+          <a
+            class="btn"
+            href="__APP_BASE__?page=create"
+            target="_top"
+          >
+            새 회의 등록
+          </a>
+        </div>
+      </section>
+
+      <!-- 2. 팀 예산 및 영수증 -->
+      <section class="card">
+        <div class="emoji">🧾</div>
+
+        <h3>팀 예산 및 영수증</h3>
+
+        <p>
+          영수증을 Gemini AI로 분석하고
+          지출 내역을 등록해
+          팀별 예산 현황을 확인합니다.
+        </p>
+
+        <div class="actions">
+          <a
+            class="btn"
+            href="__APP_BASE__?page=budget"
+            target="_top"
+          >
+            예산 관리 열기
+          </a>
+        </div>
+      </section>
+
+      <!-- 3. AI 회의록 작성 -->
+      <section class="card">
+        <div class="emoji">🎙️</div>
+
+        <h3>AI 회의록 작성</h3>
+
+        <p>
+          완료된 회의를 선택하고 음성을
+          녹음·업로드하면,
+          AI가 요약과 할 일을 정리하고
+          담당자에게 자동 배포합니다.
+        </p>
+
+        <div class="actions">
+          <a
+            class="btn"
+            href="__APP_BASE__?page=minutes"
+            target="_top"
+          >
+            회의록 작성 열기
+          </a>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- 업무 자동화 흐름 -->
+    <h2>업무 자동화 흐름</h2>
+
+    <ol
+      class="note"
+      style="margin-top:0;padding-left:20px"
+    >
+      <li>
+        <b>회의 등록</b>
+        → 구글 캘린더 초대 +
+        참석자별 개인 응답 링크 메일
+      </li>
+
+      <li>
+        <b>참석 응답</b>
+        → 참석/불참/미정과 맡을 사전 할 일 선택
+        → 캘린더 일정에 자동 반영
+      </li>
+
+      <li>
+        <b>상태 자동 변경</b>
+        → 예정 → 진행중 → 완료
+        (완료되면 주최자에게 회의록 작성 요청 메일)
+      </li>
+
+      <li>
+        <b>AI 회의록</b>
+        → 완료된 회의 선택
+        → 음성 STT
+        → AI 요약 + 할 일 추출
+      </li>
+
+      <li>
+        <b>할 일 배포</b>
+        → 담당자별 할 일 메일 +
+        참석자 전원 회의록 메일 +
+        캘린더에 요약 반영
+      </li>
+
+      <li>
+        지출 등록으로 팀 월 예산을 처음 넘으면
+        <b>예산 초과 알림 메일</b>이 발송됩니다.
+      </li>
+    </ol>
+
+    <!-- 관리자 안내 -->
+    <p class="note">
+      회의 등록 후 받은 관리자 링크를 보관해 주세요.
+      회의실 목록은 Google Sheets의 Rooms 시트에서,
+      팀 목록과 월 예산은 팀예산 시트에서
+      수정할 수 있습니다.
+    </p>
+
+  </main>
+
+</body>
+</html>
