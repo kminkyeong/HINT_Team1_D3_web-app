@@ -1,0 +1,202 @@
+
+<style>
+  :root {
+    --navy: #002c5f;
+    --blue: #007fa8;
+    --sky: #00aad2;
+    --bg: #f3f6fa;
+    --line: #dfe5ec;
+    --text: #172337;
+    --sub: #5f6f84;
+    --radius: 4px;
+    --primary: #007fa8;
+    --primary-light: #e6f1f7;
+  }
+
+  body {
+    background: var(--bg) !important;
+    color: var(--text);
+    font-family:
+      'Noto Sans KR',
+      'Apple SD Gothic Neo',
+      'Malgun Gothic',
+      sans-serif !important;
+  }
+
+  /* 상단 공통 내비게이션 */
+
+  .mw-nav {
+    background: var(--navy);
+    position: sticky;
+    top: 0;
+    z-index: 50;
+  }
+
+  .mw-in {
+    max-width: 1240px;
+    margin: auto;
+    padding: 0 20px;
+    min-height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .mw-brand {
+    color: #fff;
+    font-weight: 800;
+    letter-spacing: .08em;
+    font-size: 16px;
+    text-decoration: none;
+  }
+
+  .mw-links {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .mw-links a {
+    color: #fff;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 9px 14px;
+    border-radius: 3px;
+  }
+
+  .mw-links a:hover {
+    background: #ffffff1f;
+  }
+
+  /* 현재 선택된 메뉴 강조 */
+
+  .mw-nav[data-active=home] [data-k=home],
+  .mw-nav[data-active=meeting] [data-k=meeting],
+  .mw-nav[data-active=budget] [data-k=budget],
+  .mw-nav[data-active=minutes] [data-k=minutes] {
+    background: var(--blue);
+  }
+
+  /* 모바일 반응형 */
+
+  @media (max-width: 640px) {
+    .mw-in {
+      padding: 10px 14px;
+    }
+  }
+
+  /* 공통 컴포넌트 톤 */
+
+  h1 {
+    color: var(--navy);
+  }
+
+  .card,
+  main > section {
+    border: 1px solid var(--line) !important;
+    border-radius: var(--radius) !important;
+    box-shadow: none !important;
+  }
+
+  input,
+  select,
+  textarea {
+    border: 1px solid var(--line) !important;
+    border-radius: var(--radius) !important;
+    background: #fff;
+  }
+
+  input:focus,
+  select:focus,
+  textarea:focus {
+    outline: 0 !important;
+    border-color: var(--sky) !important;
+    box-shadow: 0 0 0 3px #00aad230 !important;
+  }
+
+  button:not(.red):not(.secondary):not(.ghost),
+  .download {
+    background: var(--navy);
+    border-radius: var(--radius) !important;
+  }
+
+  button:not(.red):not(.secondary):not(.ghost):not(:disabled):hover {
+    background: var(--blue);
+  }
+
+  main > h1 {
+    color: var(--navy);
+  }
+
+  summary {
+    color: var(--blue);
+  }
+
+  #status {
+    background: var(--primary-light) !important;
+    border-radius: var(--radius) !important;
+  }
+</style>
+
+<!-- 통합 업무 관리 상단 메뉴 -->
+
+<header
+  class="mw-nav"
+  data-active="__ACTIVE__"
+>
+  <div class="mw-in">
+
+    <!-- 로고 / 홈 이동 -->
+    <a
+      class="mw-brand"
+      href="__APP_BASE__?page=home"
+      target="_top"
+    >
+      MOBILITY WORKSPACE
+    </a>
+
+    <!-- 전체 메뉴 -->
+    <nav
+      class="mw-links"
+      aria-label="전체 메뉴"
+    >
+
+      <a
+        data-k="home"
+        href="__APP_BASE__?page=home"
+        target="_top"
+      >
+        홈
+      </a>
+
+      <a
+        data-k="meeting"
+        href="__APP_BASE__?page=create"
+        target="_top"
+      >
+        회의 일정 관리
+      </a>
+
+      <a
+        data-k="budget"
+        href="__APP_BASE__?page=budget"
+        target="_top"
+      >
+        팀 예산 및 영수증
+      </a>
+
+      <a
+        data-k="minutes"
+        href="__APP_BASE__?page=minutes"
+        target="_top"
+      >
+        AI 회의록 작성
+      </a>
+
+    </nav>
+
+  </div>
+</header>
